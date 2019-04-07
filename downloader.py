@@ -19,7 +19,7 @@ def download_video(video_link):
     id = str(uuid.uuid4())[:7]
     file_id = id + '.ogg'
     ydl_opts = {
-        'format': 'bestaudio/best',  # 'worstaudio/worst',
+        'format': 'worstaudio/worst',  # 'worstaudio/worst', 'bestaudio/best'
         'outtmpl': file_id,
         'audioformat': "aac"
 
