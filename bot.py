@@ -1,12 +1,17 @@
 import logging
 import os
-import sqlite3
 from urllib.parse import urlparse
 
 import youtube_dl
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
 
 import downloader
+from db import DBManager
+
+token = "723941396:AAHLfhiXueI3o5WCvVhH6UReBW2c0Z2GuUs"
+owner_chat_id = 237735014
+TELEGRAM_LOG = "@{} requested for\n{}"
+TELEGRAM_ERROR = "User @{} caused error:\n{}"
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -37,30 +42,19 @@ def help(update, context):
 
 
 def download_video(update, context):
-    conn = sqlite3.connect('video_stats.db')
-
-    conn.execute("""CREATE TABLE IF NOT EXISTS requests (
-                     id integer PRIMARY KEY,
-                     date DATETIME DEFAULT (datetime('now','localtime')),
-                     url text,
-                     user text);
-                    """
-                 )
-    conn.execute("""CREATE TABLE IF NOT EXISTS uploaded_files (
-                         id integer PRIMARY KEY,
-                         url text,
-                         file_id text);
-                        """
-                 )
+    db = DBManager()
     url = update.message.text
+    username = str(update.message.from_user.username)
     if is_url(url) is False:
         update.message.reply_text('Enter Url please')
         return
-    cur = conn.cursor()
-    file_ids = cur.execute("""SELECT file_id FROM uploaded_files WHERE url=?""", (url,)).fetchall()
-    print(file_ids)
-    if file_ids:
-        update.message.reply_audio(file_ids[0][0])
+
+    file_id = db.get_url_file_id(url)
+    if file_id:
+        update.message.reply_audio(file_id)
+        db.insert_user_request(url, username)
+        context.bot.send_message(chat_id=owner_chat_id,
+                                 text=TELEGRAM_LOG.format(username, url))
         return
     try:
         meta = downloader.download_video(url)
@@ -75,15 +69,12 @@ def download_video(update, context):
                                           duration=meta.meta.get('duration', None),
                                           caption=meta.meta.get('title', None),
                                           thumb=cover)
-    file_id = response['audio']['file_id']
-    cur = conn.cursor()
-    sql = """INSERT INTO uploaded_files(url, file_id) VALUES(?,?)"""
-    cur.execute(sql, (url, file_id))
+    context.bot.send_message(chat_id=owner_chat_id,
+                             text=TELEGRAM_LOG.format(username, url))
 
-    sql = """INSERT INTO requests(url,user)
-                  VALUES(?,?);"""
-    cur.execute(sql, (url, str(update.message.from_user.username)))
-    conn.commit()
+    db.insert_file_id(url, response['audio']['file_id'])
+    db.insert_user_request(url, username)
+
     os.remove(meta.file_name)
     os.remove(meta.cover)
 
@@ -91,14 +82,19 @@ def download_video(update, context):
 def error(update, context):
     """Log Errors caused by Updates."""
     logger.warning('Update "%s" caused error "%s"', update, context.error)
+    context.bot.send_message(chat_id=owner_chat_id,
+                             text=TELEGRAM_ERROR.format(update.message.from_user.username, context.error))
 
 
 def main():
+    db = DBManager()
+    db.create_tables()
     """Start the bot."""
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
     # Post version 12 this will no longer be necessary
-    updater = Updater("723941396:AAHLfhiXueI3o5WCvVhH6UReBW2c0Z2GuUs", use_context=True)
+
+    updater = Updater(token, use_context=True)
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
