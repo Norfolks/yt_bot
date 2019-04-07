@@ -26,8 +26,6 @@ def download_video(video_link):
     }
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
         info_dict = ydl.extract_info(video_link, download=True)
-        for key in info_dict.keys():
-            print(key + ": " + str(info_dict[key]))
         # ydl.download([video_link])
         response = requests.get(info_dict['thumbnails'][0]['url'])
         cover_name = id + 'cover.jpeg'
