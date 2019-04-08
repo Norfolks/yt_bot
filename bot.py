@@ -32,6 +32,8 @@ def is_url(url):
 
 
 def start(update, context):
+    db = DBManager()
+    db.create_new_user(update.message.chat_id)
     """Send a message when the command /start is issued."""
     update.message.reply_text('Hi! This is yputube downloader bot. Enter a link to download video.')
 
@@ -44,12 +46,14 @@ def help(update, context):
 def download_video(update, context):
     db = DBManager()
     url = update.message.text
+    chat_id = update.message.chat_id
+    quality = db.get_chat_quality(chat_id)
     username = str(update.message.from_user.username)
     if is_url(url) is False:
         update.message.reply_text('Enter Url please')
         return
 
-    file_id = db.get_url_file_id(url)
+    file_id = db.get_url_file_id(url, quality)
     if file_id:
         update.message.reply_audio(file_id)
         db.insert_user_request(url, username)
@@ -57,7 +61,7 @@ def download_video(update, context):
                                  text=TELEGRAM_LOG.format(username, url))
         return
     try:
-        meta = downloader.download_video(url)
+        meta = downloader.download_video(url, quality)
     except youtube_dl.utils.DownloadError as e:
         update.message.reply_text(str(e))
         return
@@ -72,7 +76,7 @@ def download_video(update, context):
     context.bot.send_message(chat_id=owner_chat_id,
                              text=TELEGRAM_LOG.format(username, url))
 
-    db.insert_file_id(url, response['audio']['file_id'])
+    db.insert_file_id(url, response['audio']['file_id'], quality)
     db.insert_user_request(url, username)
 
     os.remove(meta.file_name)
@@ -84,6 +88,18 @@ def error(update, context):
     logger.warning('Update "%s" caused error "%s"', update, context.error)
     context.bot.send_message(chat_id=owner_chat_id,
                              text=TELEGRAM_ERROR.format(update.message.from_user.username, context.error))
+
+
+def set_max_quality(update, context):
+    db = DBManager()
+    db.set_chat_settings(update.message.chat_id, 'max')
+    update.message.reply_text("Max quality is set")
+
+
+def set_min_quality(update, context):
+    db = DBManager()
+    db.set_chat_settings(update.message.chat_id, 'min')
+    update.message.reply_text("Min quality is set")
 
 
 def main():
@@ -102,6 +118,8 @@ def main():
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
+    dp.add_handler(CommandHandler("max_quality", set_max_quality))
+    dp.add_handler(CommandHandler("min_quality", set_min_quality))
 
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, download_video))
