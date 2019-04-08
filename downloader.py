@@ -17,7 +17,7 @@ class VideoMeta:
 
 def download_worst(video_link):
     id = str(uuid.uuid4())[:7]
-    file_id = id + '.wav'
+    file_id = id + '.mp3'
     ydl_opts = {
         'format': 'worstaudio/worst',  # 'worstaudio/worst', 'bestaudio/best'
         'outtmpl': file_id,
@@ -51,11 +51,11 @@ def download_worst(video_link):
 
 def download_best(video_link):
     id = str(uuid.uuid4())[:7]
-    file_id = id + '.wav'
+    file_id = id + '.ogg'
     ydl_opts = {
         'format': 'bestaudio/best',  # 'worstaudio/worst', 'bestaudio/best'
         'outtmpl': file_id,
-        'audioformat': "mp3"
+        'audioformat': "aac"
 
     }
     with youtube_dl.YoutubeDL(ydl_opts) as ydl:
